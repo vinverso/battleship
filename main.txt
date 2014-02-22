@@ -1,0 +1,1017 @@
+package battleship;
+ 
+import java.util.Scanner;
+ 
+public class BattleshipGame {
+ 
+	Ocean ocean = new Ocean();
+	
+	
+	public BattleshipGame() {};
+ 
+	
+	public static void main(String[] args) {
+		boolean play = true;
+		
+		while (play == true) {
+		
+		BattleshipGame b = new BattleshipGame();
+		boolean gameOver = false;
+		Scanner s = new Scanner(System.in);
+		
+		
+		System.out.println("Welcome to Battleship!");
+		Ocean o = new Ocean();
+		o.placeAllShipsRandomly();
+		
+		//make sure the below input is between 0 and 9
+		
+//		Ship[][] si = o.getShipArray();
+//		for(int i=0; i<10; i++) {
+//			System.out.println("");
+//			for(int j=0; j<10; j++) {
+//				System.out.print(si[i][j].getShipType() + j + "   ");
+//			}
+//		}
+	
+		
+			while (gameOver == false) {
+				b.shoot(o);
+				//show the results of the shots
+				o.print();  //print the ocean
+				gameOver = true; //if any of the non-sunk ships turn this boolean false, we know the game is not over
+				//if all are sunk, the boolean gameOver will stay true
+				for (Ship[] shipArray : o.getShipArray()) {
+					for (Ship ship : shipArray) {
+						if (!ship.isSunk() &&  !(ship instanceof EmptySea)) {
+							gameOver = false;
+					}
+				}
+			}
+		}
+			
+		boolean invalidInput = true;
+		//if we reach here, the game is over	
+		System.out.println("Congratulations! The game is over");
+		System.out.println("Shots fired were: " + o.shotsFired); 
+		System.out.println("Would you like to play again?");
+		System.out.println("Enter 'y' for yes, 'n' for no");
+		String playAgain = s.next();
+		
+		while (invalidInput) {
+			try {
+				if (playAgain.equals("y")) {
+					play = true;
+				}
+				else {
+					play = false;
+					invalidInput = false;
+				}
+			}
+			catch (Exception e) {
+				invalidInput = true;
+				System.out.println("woops.. try again");
+			}
+			
+		}
+ 
+		
+			
+			}
+		}
+	
+	
+	public void shoot(Ocean ocean) {
+		Scanner s = new Scanner(System.in);
+ 
+		//accept shots while game is not over
+		try{
+		System.out.println("Where would you like to shoot?");
+		System.out.println("Enter a row, then column (both integers 0-9): ");
+		int row = s.nextInt();
+		int column = s.nextInt();	
+		ocean.shootAt(row, column); 
+		if (ocean.isOccupied(row, column)) {
+			System.out.println("Hit!");
+		}
+		else {
+			System.out.println("Miss!");
+		}
+	}
+	
+	catch (Exception e) {
+		System.out.println("Woops! Try again.");
+		this.shoot(ocean);
+	}
+	}
+}
+	
+	
+package battleship;
+ 
+import java.util.Random;
+ 
+public class Ocean {
+ 
+	//Used to quickly determine which ship is in any given location.
+	Ship[][] ships = new Ship[10][10]; 
+	//The total number of shots fired by the user.		
+	int shotsFired;
+	//The number of times a shot hit a ship. If the user shoots the same 
+	//part of a ship more than once, every hit is counted, even though the 
+	//additional "hits" don't do the user any good.
+	int hitCount; 
+	//The number of ships sunk (10 ships in all).
+	int shipsSunk;
+	
+	//The constructor. Creates an "empty" ocean (fills the ships array with EmptySeas). Also
+	//initializes any game variables, such as how many shots have been fired.
+	public Ocean() {
+		for (int row = 0; row < 10; row++) {
+			for (int column = 0; column < 10; column++) {
+				EmptySea emptySea = new EmptySea();
+				emptySea.placeShipAt(row, column, true, this);
+			}
+		}
+		shotsFired = 0;
+		hitCount = 0;
+		shipsSunk = 0;
+	}
+	
+	//make an array of ships for placing in the (initially) empty ocean
+	public Ship[] createShips() {
+		Ship[] notPlacedShips = new Ship[10];
+		notPlacedShips[0] = new Battleship();
+		notPlacedShips[1] = new Cruiser();
+		notPlacedShips[2] = new Cruiser();
+		notPlacedShips[3] = new Destroyer();
+		notPlacedShips[4] = new Destroyer();
+		notPlacedShips[5] = new Destroyer();
+		notPlacedShips[6] = new Submarine();
+		notPlacedShips[7] = new Submarine();
+		notPlacedShips[8] = new Submarine();
+		notPlacedShips[9] = new Submarine();
+		
+		return notPlacedShips; 
+	}
+	
+	//Place all ten ships randomly on the (initially empty) ocean. Place 
+	//larger ships before smaller ones, or you may end up with no legal place to put a large 
+	//ship. You will want to use the Random class in the java.util package, so look that up in the Java API.
+	public void placeAllShipsRandomly() {
+		
+		Random r = new Random();
+		Ship[] shipsToBePlaced = createShips();
+		boolean hasBeenPlaced;
+		
+		for(Ship s : shipsToBePlaced) {
+			hasBeenPlaced = false;
+			
+			while (!hasBeenPlaced) {
+				int tryRow = r.nextInt(10);
+				int tryColumn = r.nextInt(10);
+				boolean isHorizontal = r.nextBoolean();
+				
+				if (s.okToPlaceShipAt(tryRow, tryColumn, isHorizontal, this)) {	
+					s.placeShipAt(tryRow, tryColumn, isHorizontal, this);
+					hasBeenPlaced = true;
+				}
+			}
+		}
+	}
+	
+	/*Returns true if the given location contains a "real" ship, still afloat, (not an EmptySea), false if it
+	does not. In addition, this method updates the number of shots that have been fired, and the number of hits.
+	Note If a location contains a "real" ship, shootAt should return true every time the user shoots at 
+	that same location. Once a ship has been "sunk", additional shots at its location should return false.*/
+	public boolean shootAt(int row, int column) {
+		Ship squareHit = ships[row][column];
+		shotsFired += 1;
+		
+		if (squareHit instanceof EmptySea) {
+			squareHit.shootAt(row, column);
+			return false;
+		}
+		else {
+			if (squareHit.isSunk()) {
+				return false;
+			}
+			else {
+				squareHit.shootAt(row, column);
+				hitCount += 1;
+				if (squareHit.isSunk() == true) {
+					shipsSunk += 1;
+				}
+				return true;
+			}
+		}
+	}
+	
+	public boolean isOccupied(int row, int column) {
+		Ship s = this.ships[row][column];
+		if (s instanceof EmptySea) {
+			return false;
+		}
+		else return true;
+	}
+ 
+	//Returns the number of shots fired (in this game).
+	public int getShotsFired() {
+		return shotsFired;
+	}
+		
+	//Returns the number of hits recorded (in this game). All hits are counted, not just the first 
+	//time a given square is hit.
+	public int getHitCount() {
+		return hitCount;
+	}
+	
+	//Returns the number of ships sunk (in this game).
+	public int getShipsSunk() {
+		return shipsSunk;
+	}
+	
+	//Returns true if all ships have been sunk, otherwise false.
+	public boolean isGameOver() {
+		if (shipsSunk == 10) {
+			return true;
+		}
+		else return false;
+	}
+ 
+	//Returns the 10x10 array of ships. The methods in the Ship class that 
+	//take an Ocean parameter really need to be able to look at the contents of 
+	//this array; the placeShipAt method even needs to modify it. While it is 
+	//undesirable to allow methods in one class to directly access instance 
+	//variables in another class, sometimes there is just no good alternative.
+	public Ship[][] getShipArray() {
+		return this.ships;
+	}
+ 
+	//Prints the ocean. To aid the user, row numbers should be displayed along the
+	//left edge of the array, and column numbers should be displayed along the top. 
+	//Numbers should be 0 to 9, not 1to 10. The top left corner square should be 0, 0. 
+	//Use 'S' to indicate a location that you have fired upon and hit a (real) ship, '-' to
+	//indicate a location that you have fired upon and found nothing there, 'x' to indication
+	//location containing a sunken ship, and '.' to indicate a location that you have never fired upon. 
+	//This is the only method in the Ocean class that does any input/output, and it is never 
+	//called from within the Ocean class (except possibly during debugging), only from the BattleshipGameclass.
+	public void print() {
+		// print the column numbers
+		System.out.print("   " + " ");
+		for (int i = 0; i < 10; i++) {
+			System.out.print(" " + i + " ");
+			System.out.print(" ");
+		}
+		System.out.print("\n");
+		
+		// print the upper frame
+		System.out.print("   ");
+		for (int i = 0; i < 10; i++) {
+			System.out.print(" " + "___");
+		}
+		System.out.print("\n");
+		
+		for (int i = 0; i < 10; i++) {
+			System.out.print(" " + i + " " + "|");
+			for (int j = 0; j < 10; j++) {
+				if (this.ships[i][j].isHorizontal()) {
+					boolean hitPosition = ships[i][j].hit[j - ships[i][j].getBowColumn()];
+					if (hitPosition) {
+						System.out.print(" " + this.ships[i][j].toString() + " " + "|");
+					}
+					else {
+						System.out.print(" " + "." + " " + "|");
+					}
+				}
+				else {
+					boolean hitPosition = ships[i][j].hit[i - ships[i][j].getBowRow()];
+					if (hitPosition) {
+						System.out.print(" " + this.ships[i][j].toString() + " " + "|");
+					}
+					else {
+						System.out.print(" " + "." + " " + "|");
+					}
+				}
+			}
+			System.out.print("\n");
+			
+			System.out.print("   " + "|");
+			for (int k = 0; k < 10; k++) {
+				System.out.print("___" + "|");
+			}
+			System.out.print("\n");
+		}
+	}
+	public static void main(String[] args) {
+		Ocean ocean = new Ocean();
+ 
+		Battleship battleship = new Battleship();
+		Cruiser cruiser = new Cruiser();
+		Destroyer destroyer = new Destroyer();
+		Submarine submarine = new Submarine();
+		
+		ocean.print();
+		
+		battleship.placeShipAt(1, 0, false, ocean);
+		cruiser.placeShipAt(3, 4, true, ocean);
+		destroyer.placeShipAt(6, 7, false, ocean);
+		submarine.placeShipAt(4, 8, true, ocean);
+		
+		ocean.shootAt(0, 0);
+		ocean.shootAt(5, 5);
+		ocean.shootAt(7, 8);
+		ocean.shootAt(2, 0);
+		ocean.shootAt(3, 0);
+		ocean.shootAt(4, 0);
+		ocean.shootAt(3, 4);
+		ocean.shootAt(3, 5);
+		ocean.shootAt(3, 6);
+		ocean.shootAt(7, 9);
+		ocean.shootAt(4, 8);
+		ocean.shootAt(2, 0);
+		
+		ocean.print();
+		
+		ocean.shootAt(5, 3);
+		ocean.print();
+		
+		ocean.shootAt(1, 0);
+		ocean.print();
+ 
+ 
+ 
+ 
+	}
+}
+ 
+ 
+package battleship;
+ 
+ 
+public class EmptySea extends Ship {
+//every time we look at some location in the array, we have to check if it is null. 
+//By putting a non-null value in empty locations, denoting the absence of a ship, we can save all that null checking.
+	
+	
+	public EmptySea() {
+		this.length = 1;
+	}
+ 
+	//This method overrides shootAt(int row, int column) that is 
+	//inherited from Ship, and always returns false to indicate that 
+	//nothing was hit.
+	@Override
+	public boolean shootAt(int row, int column) {
+		return false;
+	}
+ 
+	
+	//This method overrides isSunk() that is inherited from Ship,
+	//and always returns false to indicate that you didn't sink anything.
+	@Override
+	public boolean isSunk() {
+		return false;
+	}
+	
+	
+	//	Returns a single-character String to use in the Ocean's 
+	//print method (see below).
+	@Override
+	public String toString() {
+		return "-";
+	}
+ 
+	
+}
+ 
+package battleship;
+ 
+public class Ship {
+	
+	int bowRow; 
+	//-- the row (0 to 9) which contains the bow (front) of the ship.
+	int bowColumn; 
+	//-- the column (0 to 9) which contains the bow (front) of the ship.
+	int length; 
+	//-- the number of squares occupied by the ship. An "empty sea" location has length 1.
+	boolean horizontal; 
+	//-- true if the ship occupies a single row, false otherwise.
+	boolean [] hit = new boolean[4]; 
+	//-- an array of booleans telling whether that part of the ship has been hit. Only battleships use all four locations; cruisers use the first three; destroyers 2; submarines 1; and "empty sea" either one or none.
+	
+	//-- the constructor
+	public Ship() {};
+	
+	//Returns the length of this particular ship. This method exists only to be 
+	//overridden, so it doesn't much matter what it returns; an abstract "ship" 
+	//doesn't have a fixed length.
+	public int getLength() {
+		return length;
+	}
+	
+	//Returns bowRow
+	public int getBowRow() {
+		return bowRow;
+	}
+	
+	// Returns bowColumn
+	public int getBowColumn() {
+		return bowColumn;
+	}
+	
+	//Returns horizontal
+	public boolean isHorizontal() {
+		return horizontal;
+	}
+	
+	//Sets the value of bowRow
+	public void setBowRow(int row) {
+		RuntimeException e = new RuntimeException();
+		if (row >= 0 && row <=9) {
+			bowRow = row;
+		}
+		else throw e;
+	}
+	
+	//Sets the value of bowColumn
+	public void setBowColumn(int column) {
+		RuntimeException e = new RuntimeException();
+		if (column >= 0 && column <=9) {
+			bowColumn = column;
+		}
+		else throw e;
+	}
+	
+	//Sets the value of the instance variable horizontal.
+	public void setHorizontal(boolean horizontal) {
+		this.horizontal = horizontal;
+	}
+	
+	//Returns the type of this ship. This method exists only to be overridden, 
+	//so it doesn't much matter what it returns.
+	public String getShipType() {
+		return "";
+	}
+	
+	//Returns true if it is okay to put a ship of this length with its 
+	//bow in this location, with the given orientation, and returns false 
+	//otherwise. The ship must not overlap another ship, or touch another ship 
+	//(vertically, horizontally, or diagonally), and it must not "stick out" 
+	//beyond the array. Does not actually change either the ship or the Ocean, 
+	//just says whether it is legal to do so.
+	public boolean okToPlaceShipAt(int row, int column, boolean horizontal, Ocean ocean) {
+		
+		int startRow;
+		int startColumn;
+		int endRow;
+		int endColumn;
+		
+		if (horizontal) {
+			if (column + this.length > 9) {
+				return false;
+			}
+			
+			startRow = Math.max(row - 1, 0);
+			startColumn = Math.max(column - 1, 0);
+			endRow = Math.min(row + 1, 9);
+			endColumn = Math.min(column + this.length, 9);
+			
+			for (int i = startRow; i < endRow + 1; i++) {
+				for (int j = startColumn; j < endColumn + 1; j++) {
+					if (ocean.isOccupied(i, j)) {
+						return false;
+					}
+				}
+			}
+			
+		}
+		
+		else {
+			if (row + this.length > 9) {
+				return false;
+			}
+			
+			startRow = Math.max(row - 1, 0);
+			startColumn = Math.max(column - 1, 0);
+			endRow = Math.min(row + this.length, 9);
+			endColumn = Math.min(column + 1, 9);
+			
+			for (int i = startRow; i < endRow + 1; i++) {
+				for (int j = startColumn; j < endColumn + 1; j++) {
+					if (ocean.isOccupied(i, j)) {
+						return false;
+					}
+				}
+			}
+		}
+		
+		return true;
+	}
+	
+	//"Puts" the ship in the ocean. This involves giving values to the bowRow, 
+	//bowColumn, and horizontal instance variables in the ship, and it also 
+	//involves putting a reference to the ship in each of 1 or more locations 
+	//(up to 4) in the ships array in the Ocean object. (Note: This will be as 
+	//many as four identical references; you can't refer to a "part" of a ship, 
+	//only to the whole ship.)
+	public void placeShipAt(int row, int column, boolean horizontal, Ocean ocean) {
+		this.setBowRow(row);
+		this.setBowColumn(column);
+		this.setHorizontal(horizontal);
+		
+		if (horizontal) {
+			for (int j = column; j < column + this.length; j++) {
+				ocean.ships[row][j] = this;
+			}
+		}
+		else {
+			for (int i = row; i < row + this.length; i++) {
+				ocean.ships[i][column] = this;
+			}
+		}
+	}
+	
+	//If a part of the ship occupies the given row and column, and the ship 
+	//hasn't been sunk, mark that part of the ship as "hit" (in the hit array, 
+	//0 indicates the bow) and return true, otherwise return false.
+	public boolean shootAt(int row, int column) {
+		if (!(this instanceof EmptySea)) {
+			if (!this.isSunk()) {
+				if (horizontal) {
+					hit[column - bowColumn] = true;
+					return true;
+				}
+				else {
+					hit[row - bowRow] = true;
+					return true;
+				}
+			}
+			else {
+				return false;
+			}
+		}
+		else {
+			hit[0] = true;
+			return false;
+		}
+	}
+	
+	//Return true if every part of the ship has been hit, false otherwise.
+	public boolean isSunk() {
+		if (!(this instanceof EmptySea)) {
+			for (int i = 0; i < this.length; i++) {
+				if (!hit[i]) {
+					return false;
+				}
+			}
+			return true;	
+		}
+		else return false;		
+	}
+	
+	public String toString() {
+		if (this.isSunk()) {
+			return "x";
+		}
+		else return "S";
+	}
+}
+ 
+package battleship;
+ 
+ 
+public class Battleship extends Ship {
+ 
+	public Battleship() {
+		this.length = 4;
+		for (int i = 0; i < this.length; i++) {
+			this.hit[i] = false;
+		}
+	}
+	
+	@Override
+	//Returns one of the strings "battleship", "cruiser", "destroyer", or 
+	//"submarine", as appropriate.
+	public String getShipType() {
+		return "battleship";
+	}
+	
+	@Override
+	//Returns a single-character String to use in the Ocean's print
+	//method (see below).
+	//This method should return "x" if the ship has been sunk, "S" if it has not 
+	//been sunk. This method can be used to print out locations in the ocean that
+	//have been shot at; it should not be used to print locations that have not 
+	//been shot at. 
+	//Since toString behaves exactly the same for all ship types, it can be
+	//moved into the Ship class, and simply inherited by each individual type of 
+	//ship.
+	public String toString() {
+		if (this.isSunk()) {
+			return "x";
+		}
+		else return "S";
+	}
+}
+ 
+ 
+package battleship;
+ 
+ 
+public class Cruiser extends Ship{
+ 
+	public Cruiser () {
+		this.length = 3;
+		for (int i = 0; i < this.length; i++) {
+			this.hit[i] = false;
+		}
+	}
+	
+	@Override
+	//Returns one of the strings "battleship", "cruiser", "destroyer", or 
+	//"submarine", as appropriate.
+	public String getShipType() {
+		return "cruiser";
+	}
+	
+	@Override
+	//Returns a single-character String to use in the Ocean's print
+	//method (see below).
+	//This method should return "x" if the ship has been sunk, "S" if it has not 
+	//been sunk. This method can be used to print out locations in the ocean that
+	//have been shot at; it should not be used to print locations that have not 
+	//been shot at. 
+	//Since toString behaves exactly the same for all ship types, it can be
+	//moved into the Ship class, and simply inherited by each individual type of 
+	//ship.
+	public String toString() {
+		if (this.isSunk()) {
+			return "x";
+		}
+		else return "S";
+	}
+ 
+}
+ 
+package battleship;
+ 
+ 
+public class Destroyer extends Ship{
+ 
+	public Destroyer () {
+		this.length = 2;
+		for (int i = 0; i < this.length; i++) {
+			this.hit[i] = false;
+		}
+	}
+	
+	@Override
+	//Returns one of the strings "battleship", "cruiser", "destroyer", or 
+	//"submarine", as appropriate.
+	public String getShipType() {
+		return "destroyer";
+	}
+	
+	@Override
+	//Returns a single-character String to use in the Ocean's print
+	//method (see below).
+	//This method should return "x" if the ship has been sunk, "S" if it has not 
+	//been sunk. This method can be used to print out locations in the ocean that
+	//have been shot at; it should not be used to print locations that have not 
+	//been shot at. 
+	//Since toString behaves exactly the same for all ship types, it can be
+	//moved into the Ship class, and simply inherited by each individual type of 
+	//ship.
+	public String toString() {
+		if (this.isSunk()) {
+			return "x";
+		}
+		else return "S";
+	}
+	
+ 
+	
+}
+ 
+ 
+package battleship;
+ 
+ 
+public class Submarine  extends Ship {
+ 
+	public Submarine () {
+		this.length = 1;
+		this.hit[0] = false;
+	}
+	
+	@Override
+	//Returns one of the strings "battleship", "cruiser", "destroyer", or 
+	//"submarine", as appropriate.
+	public String getShipType() {
+		return "submarine";
+	}
+	
+	@Override
+	//Returns a single-character String to use in the Ocean's print
+	//method (see below).
+	//This method should return "x" if the ship has been sunk, "S" if it has not 
+	//been sunk. This method can be used to print out locations in the ocean that
+	//have been shot at; it should not be used to print locations that have not 
+	//been shot at. 
+	//Since toString behaves exactly the same for all ship types, it can be
+	//moved into the Ship class, and simply inherited by each individual type of 
+	//ship.
+	public String toString() {
+		if (this.isSunk()) {
+			return "x";
+		}
+		else return "S";
+	}
+	
+}
+ 
+package battleship;
+ 
+import static org.junit.Assert.*;
+ 
+import org.junit.Before;
+import org.junit.Test;
+ 
+public class OceanTest {
+	
+	Ocean ocean;
+	Battleship battleship;
+	Cruiser cruiser;
+	Destroyer destroyer;
+	Submarine submarine;
+ 
+	@Before
+	public void setUp() throws Exception {
+		ocean = new Ocean();
+		battleship = new Battleship();
+		cruiser = new Cruiser();
+		destroyer = new Destroyer();
+		submarine = new Submarine();
+		
+	}
+ 
+	@Test
+	public void testOcean() {
+		assertEquals(ocean.shotsFired, 0);
+		assertEquals(ocean.hitCount, 0);
+		assertEquals(ocean.shipsSunk, 0);
+		assertEquals(ocean.ships[0][0].getClass(), EmptySea.class);
+		assertEquals(ocean.ships[4][5].getClass(), EmptySea.class);
+		assertEquals(ocean.ships[6][7].getClass(), EmptySea.class);
+		assertEquals(ocean.ships[9][9].getClass(), EmptySea.class);
+	}
+	
+	@Test(expected=RuntimeException.class)
+    public void testOutOfOcean() {
+		ocean.ships[10][10].getClass();
+	}
+	
+	@Test
+	public void testCreateShips() {
+		Ship[] shipsCreated = ocean.createShips();
+		assertEquals(shipsCreated.length, 10);
+		assertEquals(shipsCreated[0].getClass(), Battleship.class);
+		assertEquals(shipsCreated[2].getClass(), Cruiser.class);
+		assertEquals(shipsCreated[4].getClass(), Destroyer.class);
+		assertEquals(shipsCreated[9].getClass(), Submarine.class);
+	}
+	
+	@Test
+	public void testShootAt() {
+		battleship.placeShipAt(1, 0, false, ocean);
+		cruiser.placeShipAt(3, 4, true, ocean);
+		destroyer.placeShipAt(6, 7, false, ocean);
+		submarine.placeShipAt(4, 8, true, ocean);
+		
+		ocean.shootAt(0, 0);
+		ocean.shootAt(5, 5);
+		ocean.shootAt(7, 8);
+		ocean.shootAt(2, 0);
+		ocean.shootAt(3, 0);
+		ocean.shootAt(4, 0);
+		ocean.shootAt(3, 4);
+		ocean.shootAt(3, 5);
+		ocean.shootAt(3, 6);
+		ocean.shootAt(7, 9);
+		ocean.shootAt(4, 8);
+		ocean.shootAt(2, 0);
+ 
+		assertEquals(ocean.getShotsFired(), 12);
+		assertEquals(ocean.getHitCount(), 8);
+		assertEquals(ocean.getShipsSunk(), 2);		
+	}
+	
+	@Test
+	public void testIsOccupied() {
+		battleship.placeShipAt(1, 0, false, ocean);
+		cruiser.placeShipAt(3, 4, true, ocean);
+		destroyer.placeShipAt(6, 7, false, ocean);
+		submarine.placeShipAt(4, 8, true, ocean);
+		
+		assertEquals(ocean.isOccupied(0, 0), false);
+		assertEquals(ocean.isOccupied(5, 5), false);
+		assertEquals(ocean.isOccupied(7, 8), false);
+		assertEquals(ocean.isOccupied(2, 0), true);
+		assertEquals(ocean.isOccupied(4, 0), true);
+		assertEquals(ocean.isOccupied(3, 4), true);
+		assertEquals(ocean.isOccupied(3, 6), true);		
+		assertEquals(ocean.isOccupied(4, 8), true);		
+ 
+	}
+	
+ 
+	
+	@Test
+	public void testIsGameOver() {
+		ocean.placeAllShipsRandomly();
+		assertEquals(ocean.isGameOver(), false);
+		
+		for (int i = 0; i < 3; i++) {
+			for ( int j = 0; j < 10; j++) {
+				ocean.shootAt(i, j);
+			}
+		}
+		assertEquals(ocean.isGameOver(), false);
+		
+		for (int i = 3 ; i < 10; i++) {
+			for ( int j = 0; j < 10; j++) {
+				ocean.shootAt(i, j); 
+			}
+		}
+		assertEquals(ocean.getShipsSunk(), 10);		
+		assertEquals(ocean.isGameOver(), true);
+	}
+	
+	@Test
+	public void testGetShipArray() {
+		battleship.placeShipAt(1, 0, false, ocean);
+		cruiser.placeShipAt(3, 4, true, ocean);
+		destroyer.placeShipAt(6, 7, false, ocean);
+		submarine.placeShipAt(4, 8, true, ocean);
+		
+		//assertEquals(ocean.getShipArray(), 0);
+		assertTrue(ocean.getShipArray() instanceof Ship[][]);
+	}
+	
+}
+ 
+ 
+package battleship;
+ 
+import static org.junit.Assert.*;
+ 
+import org.junit.Before;
+import org.junit.Test;
+ 
+// test the Ship class as well as its subclass
+public class ShipTest {
+	
+	Battleship battleship = new Battleship();
+	Cruiser cruiser = new Cruiser();
+	Destroyer destroyer = new Destroyer();
+	Submarine submarine = new Submarine();
+	EmptySea emptySea = new EmptySea();
+	Ocean ocean = new Ocean();
+	
+	@Before
+	public void setUp() throws Exception {}
+ 
+	@Test
+	public void testShip() {
+		assertEquals(battleship.getClass(), Battleship.class);
+		assertEquals(cruiser.getClass(), Cruiser.class);
+		assertEquals(destroyer.getClass(), Destroyer.class);
+		assertEquals(submarine.getClass(), Submarine.class);
+		assertEquals(emptySea.getClass(), EmptySea.class);
+	}
+	
+	@Test
+	public void testGetLength() {
+		assertEquals(battleship.getLength(), 4);
+		assertEquals(cruiser.getLength(), 3);
+		assertEquals(destroyer.getLength(), 2);
+		assertEquals(submarine.getLength(), 1);
+		assertEquals(emptySea.getLength(), 1);
+	}
+	
+	@Test
+	public void testSetBowRow() {
+		destroyer.setBowRow(5);
+		assertEquals(destroyer.getBowRow(), 5);
+	}
+	
+	@Test
+	public void testSetBowColumn() {
+		destroyer.setBowColumn(6);
+		assertEquals(destroyer.getBowColumn(), 6);
+	}
+	
+	@Test
+	public void testokToPlaceShipAt() {
+		cruiser.placeShipAt(3, 4, true, ocean);
+		boolean test1 = battleship.okToPlaceShipAt(4, 7, false, ocean);
+		boolean test2 = battleship.okToPlaceShipAt(5, 7, false, ocean);
+		boolean test3 = battleship.okToPlaceShipAt(1, 5, false, ocean);
+		boolean test4 = battleship.okToPlaceShipAt(7, 7, true, ocean);
+		
+		assertEquals(test1, false);
+		assertEquals(test2, true);
+		assertEquals(test3, false);
+		assertEquals(test4, false);
+	}
+	
+	@Test
+	public void testplaceShipAt() {
+		cruiser.placeShipAt(3, 4, true, ocean);
+		assertEquals(cruiser.getBowRow(), 3);
+		assertEquals(cruiser.getBowColumn(), 4);
+		assertEquals(cruiser.isHorizontal(), true);
+		assertEquals(cruiser.hit[0], false);
+		assertEquals(cruiser.hit[1], false);
+		assertEquals(cruiser.hit[3], false);
+		
+		
+		assertEquals(ocean.ships[3][3].getClass(), EmptySea.class);
+		assertEquals(ocean.ships[3][4].getClass(), Cruiser.class);
+		assertEquals(ocean.ships[3][5].getClass(), Cruiser.class);
+		assertEquals(ocean.ships[3][6].getClass(), Cruiser.class);
+		assertEquals(ocean.ships[3][7].getClass(), EmptySea.class);
+		assertEquals(ocean.ships[4][6].getClass(), EmptySea.class);
+	}
+/////////////////////////////////////////////////////////////////////////////	
+	@Test(expected=RuntimeException.class) 
+	public void placeOutOfBounds() {
+		cruiser.placeShipAt(10, 10, false, ocean);
+	}
+////////////////////////////////////////////////////////////////////////////
+	
+	
+	
+	@Test(expected=RuntimeException.class) 
+	public void shootOutOfBounds() {
+		ocean.shootAt(-1, 10);
+	}
+ 
+///////////////////////////////////////////////////////////////////////////
+	
+	
+	
+	@Test
+	public void testShootAt() {
+		cruiser.placeShipAt(3, 4, true, ocean);
+		cruiser.shootAt(3, 5);
+		cruiser.shootAt(3, 6);
+		cruiser.shootAt(3, 5);
+		
+		assertEquals(cruiser.hit[0], false);
+		assertEquals(cruiser.hit[1], true);
+		assertEquals(cruiser.hit[2], true);
+		assertEquals(cruiser.hit[3], false);
+ 
+		destroyer.placeShipAt(6, 7, false, ocean);
+		destroyer.shootAt(6, 7);
+		destroyer.shootAt(7, 7);
+		destroyer.shootAt(6, 7);
+		
+		assertEquals(destroyer.hit[0], true);
+		assertEquals(destroyer.hit[1], true);
+		assertEquals(destroyer.hit[2], false);
+		assertEquals(destroyer.hit[3], false);
+	}
+	
+	@Test
+	public void testIsSunk() {
+		cruiser.placeShipAt(3, 4, true, ocean);
+		cruiser.shootAt(3, 5);
+		cruiser.shootAt(3, 6);
+		assertEquals(cruiser.isSunk(), false);
+		
+		destroyer.placeShipAt(6, 7, false, ocean);
+		destroyer.shootAt(6, 7);
+		destroyer.shootAt(7, 7);
+		assertEquals(destroyer.isSunk(), true);
+	}
+	
+	@Test
+	public void testToString() {
+		cruiser.placeShipAt(3, 4, true, ocean);
+		cruiser.shootAt(3, 5);
+		cruiser.shootAt(3, 6);
+		assertEquals(cruiser.toString(), "S");
+		
+		destroyer.placeShipAt(6, 7, false, ocean);
+		destroyer.shootAt(6, 7);
+		destroyer.shootAt(7, 7);
+		assertEquals(destroyer.toString(), "x");
+	}
+ 
+}
+ 
+ 
+	
